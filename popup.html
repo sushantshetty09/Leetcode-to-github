@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LeetSync-Mini</title>
+  <style>
+    /* ── Reset & Base ─────────────────────────────── */
+    *,
+    *::before,
+    *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --surface-hover: #1c2330;
+      --border: #30363d;
+      --text: #e6edf3;
+      --text-muted: #8b949e;
+      --accent: #58a6ff;
+      --accent-hover: #79c0ff;
+      --green: #3fb950;
+      --green-glow: rgba(63, 185, 80, .15);
+      --red: #f85149;
+      --yellow: #d29922;
+      --radius: 10px;
+      --font: 'Segoe UI', system-ui, -apple-system, sans-serif;
+    }
+
+    body {
+      width: 380px;
+      min-height: 460px;
+      font-family: var(--font);
+      font-size: 13px;
+      background: var(--bg);
+      color: var(--text);
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    /* ── Header ───────────────────────────────────── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 20px;
+    }
+
+    .header-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #58a6ff 0%, #3fb950 100%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .header h1 {
+      font-size: 17px;
+      font-weight: 700;
+      letter-spacing: -.3px;
+    }
+
+    .header small {
+      display: block;
+      color: var(--text-muted);
+      font-size: 11px;
+      font-weight: 400;
+    }
+
+    /* ── Card ──────────────────────────────────────── */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 16px;
+      margin-bottom: 14px;
+    }
+
+    .card-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .8px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    /* ── Inputs ────────────────────────────────────── */
+    label {
+      display: block;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+      font-weight: 500;
+    }
+
+    input[type="text"],
+    input[type="password"] {
+      width: 100%;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-family: var(--font);
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: none;
+      transition: border-color .2s, box-shadow .2s;
+      margin-bottom: 12px;
+    }
+
+    input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px rgba(88, 166, 255, .15);
+    }
+
+    input::placeholder {
+      color: #484f58;
+    }
+
+    /* ── Row of two inputs ────────────────────────── */
+    .row {
+      display: flex;
+      gap: 10px;
+    }
+
+    .row > .field {
+      flex: 1;
+    }
+
+    /* ── Toggle ────────────────────────────────────── */
+    .toggle-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 4px 0;
+    }
+
+    .toggle-label {
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .toggle {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle .slider {
+      position: absolute;
+      inset: 0;
+      background: var(--border);
+      border-radius: 24px;
+      cursor: pointer;
+      transition: background .25s;
+    }
+
+    .toggle .slider::before {
+      content: '';
+      position: absolute;
+      left: 3px;
+      top: 3px;
+      width: 18px;
+      height: 18px;
+      background: var(--text);
+      border-radius: 50%;
+      transition: transform .25s;
+    }
+
+    .toggle input:checked + .slider {
+      background: var(--green);
+    }
+
+    .toggle input:checked + .slider::before {
+      transform: translateX(18px);
+    }
+
+    /* ── Button ────────────────────────────────────── */
+    .btn {
+      width: 100%;
+      padding: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      font-family: var(--font);
+      color: #fff;
+      background: linear-gradient(135deg, var(--accent) 0%, #3fb950 100%);
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: opacity .2s, transform .1s;
+    }
+
+    .btn:hover {
+      opacity: .9;
+    }
+
+    .btn:active {
+      transform: scale(.98);
+    }
+
+    /* ── Status bar ────────────────────────────────── */
+    .status-bar {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-top: 10px;
+      min-height: 20px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .status-dot.idle { background: var(--text-muted); }
+    .status-dot.success { background: var(--green); box-shadow: 0 0 6px var(--green-glow); }
+    .status-dot.error { background: var(--red); }
+
+    .status-text {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    /* ── Sync log ──────────────────────────────────── */
+    .log-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .log-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 10px 12px;
+      background: var(--bg);
+      border-radius: 8px;
+      border: 1px solid transparent;
+      transition: border-color .2s;
+    }
+
+    .log-item:hover {
+      border-color: var(--border);
+    }
+
+    .log-diff {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 7px;
+      border-radius: 6px;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .log-diff.easy   { background: rgba(63,185,80,.15); color: var(--green); }
+    .log-diff.medium { background: rgba(210,153,34,.15); color: var(--yellow); }
+    .log-diff.hard   { background: rgba(248,81,73,.15); color: var(--red); }
+
+    .log-info {
+      flex: 1;
+      min-width: 0;
+    }
+
+    .log-title {
+      font-size: 13px;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .log-meta {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 2px;
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 20px 0;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    .empty-state span {
+      display: block;
+      font-size: 24px;
+      margin-bottom: 6px;
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <div class="header">
+    <div class="header-icon">⚡</div>
+    <div>
+      <h1>LeetSync-Mini</h1>
+      <small>Auto-push accepted solutions to GitHub</small>
+    </div>
+  </div>
+
+  <!-- Settings Card -->
+  <div class="card">
+    <div class="card-title">GitHub Settings</div>
+
+    <label for="pat">Personal Access Token</label>
+    <input
+      type="password"
+      id="pat"
+      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      autocomplete="off"
+      spellcheck="false"
+    />
+
+    <div class="row">
+      <div class="field">
+        <label for="owner">Repository Owner</label>
+        <input type="text" id="owner" placeholder="your-username" spellcheck="false" />
+      </div>
+      <div class="field">
+        <label for="repo">Repository Name</label>
+        <input type="text" id="repo" placeholder="leetcode-solutions" spellcheck="false" />
+      </div>
+    </div>
+
+    <div class="toggle-row">
+      <span class="toggle-label">Auto-sync on accept</span>
+      <label class="toggle">
+        <input type="checkbox" id="autoSync" checked />
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <button class="btn" id="saveBtn">Save Settings</button>
+
+    <div class="status-bar" id="statusBar">
+      <span class="status-dot idle" id="statusDot"></span>
+      <span class="status-text" id="statusText">Configure your settings above</span>
+    </div>
+  </div>
+
+  <!-- Sync Log Card -->
+  <div class="card">
+    <div class="card-title">Recent Syncs</div>
+    <ul class="log-list" id="logList">
+      <li class="empty-state">
+        <span>📭</span>
+        No submissions synced yet
+      </li>
+    </ul>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
