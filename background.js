@@ -66,6 +66,41 @@ function utf8ToBase64(str) {
 
 const recentPushes = new Map();
 const DEBOUNCE_MS = 5_000; // 5 seconds debounce
+const SETTINGS_KEYS = ['githubToken', 'repoOwner', 'repoName', 'autoSync'];
+
+function storageGet(area, keys) {
+  return new Promise((resolve) => {
+    area.get(keys, (result) => resolve(result || {}));
+  });
+}
+
+function storageSet(area, value) {
+  return new Promise((resolve, reject) => {
+    area.set(value, () => {
+      const err = chrome.runtime.lastError;
+      if (err) reject(new Error(err.message));
+      else resolve();
+    });
+  });
+}
+
+async function getSettings() {
+  const [localSettings, syncSettings] = await Promise.all([
+    storageGet(chrome.storage.local, SETTINGS_KEYS),
+    storageGet(chrome.storage.sync, SETTINGS_KEYS),
+  ]);
+
+  const settings = { ...syncSettings, ...localSettings };
+  const shouldMigrate = SETTINGS_KEYS.some(
+    (key) => localSettings[key] === undefined && syncSettings[key] !== undefined,
+  );
+
+  if (shouldMigrate) {
+    await storageSet(chrome.storage.local, settings);
+  }
+
+  return settings;
+}
 
 /* ──────────────────── GitHub API helpers ──────────────────── */
 
@@ -175,10 +210,17 @@ function buildReadme(data) {
 /* ──────────────────── Sync log helpers ──────────────────── */
 
 async function appendSyncLog(entry) {
-  const { syncLog = [] } = await chrome.storage.local.get('syncLog');
+  const [localLogData, syncLogData] = await Promise.all([
+    storageGet(chrome.storage.local, 'syncLog'),
+    storageGet(chrome.storage.sync, 'syncLog'),
+  ]);
+  const syncLog = localLogData.syncLog || syncLogData.syncLog || [];
   syncLog.unshift(entry);
   if (syncLog.length > 20) syncLog.length = 20;
-  await chrome.storage.local.set({ syncLog });
+  await Promise.all([
+    storageSet(chrome.storage.local, { syncLog }),
+    storageSet(chrome.storage.sync, { syncLog }),
+  ]);
 }
 
 /* ──────────────────── Notification helper ──────────────────── */
@@ -197,12 +239,7 @@ function notify(title, message) {
 async function handleSubmission(data, sendResponse) {
   console.log('[LeetSync-Mini Background] Processing submission:', data);
 
-  const settings = await chrome.storage.local.get([
-    'githubToken',
-    'repoOwner',
-    'repoName',
-    'autoSync',
-  ]);
+  const settings = await getSettings();
 
   if (settings.autoSync === false) {
     console.log('[LeetSync-Mini Background] Auto-sync is disabled.');
@@ -297,11 +334,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 chrome.runtime.onInstalled.addListener(() => {
-  chrome.storage.local.get(['autoSync', 'repoOwner', 'repoName'], (result) => {
+  chrome.storage.local.get(['autoSync'], (result) => {
     const updates = {};
     if (result.autoSync === undefined) updates.autoSync = true;
-    if (!result.repoOwner) updates.repoOwner = 'sushantshetty09';
-    if (!result.repoName) updates.repoName = 'DSA';
     if (Object.keys(updates).length > 0) chrome.storage.local.set(updates);
   });
   console.log('[LeetSync-Mini Background] Service worker initialized.');

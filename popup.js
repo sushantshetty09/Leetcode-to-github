@@ -1,7 +1,7 @@
 /**
  * LeetSync-Mini — Popup Script
  *
- * Loads/saves settings from chrome.storage.local and renders the sync log.
+ * Loads/saves settings from chrome.storage and renders the sync log.
  */
 
 (() => {
@@ -16,11 +16,12 @@
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
   const logList = document.getElementById('logList');
+  const SETTINGS_KEYS = ['githubToken', 'repoOwner', 'repoName', 'autoSync', 'syncLog'];
 
   /* ── Check if running inside Chrome Extension ────── */
   if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-    ownerInput.value = 'sushantshetty09';
-    repoInput.value = 'DSA';
+    ownerInput.value = '';
+    repoInput.value = '';
     setStatus('error', 'Open via Extension icon in toolbar (not 127.0.0.1)');
     saveBtn.disabled = true;
     saveBtn.style.opacity = '0.5';
@@ -28,25 +29,58 @@
     return;
   }
 
-  /* ── Load saved settings ───────────────────────── */
-  chrome.storage.local.get(
-    ['githubToken', 'repoOwner', 'repoName', 'autoSync', 'syncLog'],
-    (result) => {
-      if (result.githubToken) patInput.value = result.githubToken;
-      ownerInput.value = result.repoOwner || 'sushantshetty09';
-      repoInput.value = result.repoName || 'DSA';
-      autoSyncToggle.checked = result.autoSync !== false; // default true
+  function storageGet(area, keys) {
+    return new Promise((resolve) => {
+      area.get(keys, (result) => resolve(result || {}));
+    });
+  }
 
-      if (result.githubToken && result.repoOwner && result.repoName) {
+  function storageSet(area, value) {
+    return new Promise((resolve, reject) => {
+      area.set(value, () => {
+        const err = chrome.runtime.lastError;
+        if (err) reject(new Error(err.message));
+        else resolve();
+      });
+    });
+  }
+
+  /* ── Load saved settings ───────────────────────── */
+  loadSettings();
+
+  async function loadSettings() {
+    try {
+      const [localSettings, syncSettings] = await Promise.all([
+        storageGet(chrome.storage.local, SETTINGS_KEYS),
+        storageGet(chrome.storage.sync, SETTINGS_KEYS),
+      ]);
+
+      const settings = { ...syncSettings, ...localSettings };
+      const shouldMigrate = SETTINGS_KEYS.some(
+        (key) => localSettings[key] === undefined && syncSettings[key] !== undefined,
+      );
+
+      if (shouldMigrate) {
+        await storageSet(chrome.storage.local, settings);
+      }
+
+      if (settings.githubToken) patInput.value = settings.githubToken;
+      ownerInput.value = settings.repoOwner || '';
+      repoInput.value = settings.repoName || '';
+      autoSyncToggle.checked = settings.autoSync !== false; // default true
+
+      if (settings.githubToken && settings.repoOwner && settings.repoName) {
         setStatus('success', 'Connected — ready to sync');
       }
 
-      renderLog(result.syncLog || []);
-    },
-  );
+      renderLog(settings.syncLog || []);
+    } catch (err) {
+      setStatus('error', `Failed to load settings: ${err.message}`);
+    }
+  }
 
   /* ── Save settings ─────────────────────────────── */
-  saveBtn.addEventListener('click', () => {
+  saveBtn.addEventListener('click', async () => {
     const token = patInput.value.trim();
     const owner = ownerInput.value.trim();
     const repo = repoInput.value.trim();
@@ -57,30 +91,36 @@
       return;
     }
 
-    chrome.storage.local.set(
-      { githubToken: token, repoOwner: owner, repoName: repo, autoSync },
-      () => {
-        setStatus('success', 'Settings saved ✓');
+    const settings = { githubToken: token, repoOwner: owner, repoName: repo, autoSync };
 
-        // Validate token by hitting /user
-        fetch('https://api.github.com/user', {
-          headers: {
-            Authorization: `Bearer ${token}`,
-            Accept: 'application/vnd.github+json',
-          },
+    try {
+      await Promise.all([
+        storageSet(chrome.storage.local, settings),
+        storageSet(chrome.storage.sync, settings),
+      ]);
+
+      setStatus('success', 'Settings saved ✓');
+
+      // Validate token by hitting /user
+      fetch('https://api.github.com/user', {
+        headers: {
+          Authorization: `token ${token}`,
+          Accept: 'application/vnd.github+json',
+        },
+      })
+        .then((res) => {
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          return res.json();
         })
-          .then((res) => {
-            if (!res.ok) throw new Error(`HTTP ${res.status}`);
-            return res.json();
-          })
-          .then((user) => {
-            setStatus('success', `Authenticated as ${user.login}`);
-          })
-          .catch((err) => {
-            setStatus('error', `Token validation failed: ${err.message}`);
-          });
-      },
-    );
+        .then((user) => {
+          setStatus('success', `Authenticated as ${user.login}`);
+        })
+        .catch((err) => {
+          setStatus('error', `Token validation failed: ${err.message}`);
+        });
+    } catch (err) {
+      setStatus('error', `Failed to save settings: ${err.message}`);
+    }
   });
 
   /* ── Status indicator ──────────────────────────── */

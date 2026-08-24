@@ -62,6 +62,12 @@
     return match ? match[1] : null;
   }
 
+  function getGraphqlEndpoint() {
+    return window.location.hostname.endsWith('.cn')
+      ? 'https://leetcode.cn/graphql'
+      : 'https://leetcode.com/graphql';
+  }
+
   async function fetchProblemMeta(slug) {
     const query = `
       query questionData($titleSlug: String!) {
@@ -76,7 +82,7 @@
         }
       }`;
     try {
-      const res = await fetch('https://leetcode.com/graphql', {
+      const res = await fetch(getGraphqlEndpoint(), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -102,7 +108,7 @@
         }
       }`;
     try {
-      const res = await fetch('https://leetcode.com/graphql', {
+      const res = await fetch(getGraphqlEndpoint(), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -136,7 +142,7 @@
         }
       }`;
     try {
-      const res = await fetch('https://leetcode.com/graphql', {
+      const res = await fetch(getGraphqlEndpoint(), {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
