@@ -321,14 +321,26 @@
   <div class="card">
     <div class="card-title">GitHub Settings</div>
 
-    <label for="pat">Personal Access Token</label>
-    <input
-      type="password"
-      id="pat"
-      placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-      autocomplete="off"
-      spellcheck="false"
-    />
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+      <label for="pat" style="margin-bottom: 0;">Personal Access Token</label>
+      <a href="https://github.com/settings/tokens" target="_blank" style="color: var(--accent); font-size: 11px; text-decoration: none;">Get Token ↗</a>
+    </div>
+    <div style="position: relative; margin-bottom: 12px;">
+      <input
+        type="password"
+        id="pat"
+        placeholder="ghp_xxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        autocomplete="off"
+        spellcheck="false"
+        style="margin-bottom: 0; padding-right: 36px;"
+      />
+      <button
+        type="button"
+        id="togglePat"
+        title="Toggle Token Visibility"
+        style="position: absolute; right: 10px; top: 50%; transform: translateY(-50%); background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px;"
+      >👁️</button>
+    </div>
 
     <div class="row">
       <div class="field">

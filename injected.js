@@ -28,7 +28,7 @@
     }
 
     try {
-      const lines = Array.from(document.querySelectorAll('.monaco-editor .view-line'));
+      const lines = Array.from(document.querySelectorAll('.monaco-editor .view-line, .cm-content .cm-line'));
       if (lines.length > 0) {
         return lines.map((l) => l.textContent).join('\n');
       }
@@ -49,7 +49,7 @@
     } catch (_) {}
 
     try {
-      const btn = document.querySelector('[data-cy="lang-select"], button[id*="lang"]');
+      const btn = document.querySelector('[data-cy="lang-select"], button[id*="lang"], button[class*="lang"]');
       if (btn) return btn.textContent.trim().toLowerCase();
     } catch (_) {}
 

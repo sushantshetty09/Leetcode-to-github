@@ -1,7 +1,7 @@
 /**
  * LeetSync-Mini — Popup Script
  *
- * Loads/saves settings from chrome.storage and renders the sync log.
+ * Loads/saves settings from chrome.storage (sync & local) and renders the sync log.
  */
 
 (() => {
@@ -9,6 +9,7 @@
 
   /* ── DOM refs ──────────────────────────────────── */
   const patInput = document.getElementById('pat');
+  const togglePatBtn = document.getElementById('togglePat');
   const ownerInput = document.getElementById('owner');
   const repoInput = document.getElementById('repo');
   const autoSyncToggle = document.getElementById('autoSync');
@@ -16,116 +17,151 @@
   const statusDot = document.getElementById('statusDot');
   const statusText = document.getElementById('statusText');
   const logList = document.getElementById('logList');
-  const SETTINGS_KEYS = ['githubToken', 'repoOwner', 'repoName', 'autoSync', 'syncLog'];
 
   /* ── Check if running inside Chrome Extension ────── */
-  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
-    ownerInput.value = '';
-    repoInput.value = '';
-    setStatus('error', 'Open via Extension icon in toolbar (not 127.0.0.1)');
-    saveBtn.disabled = true;
-    saveBtn.style.opacity = '0.5';
-    saveBtn.style.cursor = 'not-allowed';
+  if (typeof chrome === 'undefined' || !chrome.storage) {
+    setStatus('error', 'Open via Extension icon in Chrome toolbar');
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.style.opacity = '0.5';
+      saveBtn.style.cursor = 'not-allowed';
+    }
     return;
   }
 
-  function storageGet(area, keys) {
-    return new Promise((resolve) => {
-      area.get(keys, (result) => resolve(result || {}));
-    });
+  /* ── Storage Dual-Layer Helpers ───────────────── */
+  function getSettings(callback) {
+    const keys = ['githubToken', 'repoOwner', 'repoName', 'autoSync', 'syncLog'];
+    if (chrome.storage.sync) {
+      chrome.storage.sync.get(keys, (syncResult) => {
+        chrome.storage.local.get(keys, (localResult) => {
+          const merged = {
+            githubToken: syncResult?.githubToken || localResult?.githubToken || '',
+            repoOwner: syncResult?.repoOwner || localResult?.repoOwner || '',
+            repoName: syncResult?.repoName || localResult?.repoName || '',
+            autoSync: syncResult?.autoSync !== undefined ? syncResult.autoSync : (localResult?.autoSync !== false),
+            syncLog: localResult?.syncLog || syncResult?.syncLog || [],
+          };
+          callback(merged);
+        });
+      });
+    } else {
+      chrome.storage.local.get(keys, (localResult) => {
+        callback({
+          githubToken: localResult?.githubToken || '',
+          repoOwner: localResult?.repoOwner || '',
+          repoName: localResult?.repoName || '',
+          autoSync: localResult?.autoSync !== false,
+          syncLog: localResult?.syncLog || [],
+        });
+      });
+    }
   }
 
-  function storageSet(area, value) {
-    return new Promise((resolve, reject) => {
-      area.set(value, () => {
-        const err = chrome.runtime.lastError;
-        if (err) reject(new Error(err.message));
-        else resolve();
+  function saveSettings(data, callback) {
+    if (chrome.storage.sync) {
+      chrome.storage.sync.set(data, () => {
+        chrome.storage.local.set(data, callback);
       });
+    } else {
+      chrome.storage.local.set(data, callback);
+    }
+  }
+
+  /* ── Toggle Password Visibility ────────────────── */
+  if (togglePatBtn && patInput) {
+    togglePatBtn.addEventListener('click', () => {
+      const isPassword = patInput.type === 'password';
+      patInput.type = isPassword ? 'text' : 'password';
+      togglePatBtn.textContent = isPassword ? '🙈' : '👁️';
     });
   }
 
   /* ── Load saved settings ───────────────────────── */
-  loadSettings();
+  getSettings((result) => {
+    if (result.githubToken) patInput.value = result.githubToken;
+    if (result.repoOwner) ownerInput.value = result.repoOwner;
+    if (result.repoName) repoInput.value = result.repoName;
+    autoSyncToggle.checked = result.autoSync !== false;
 
-  async function loadSettings() {
-    try {
-      const [localSettings, syncSettings] = await Promise.all([
-        storageGet(chrome.storage.local, SETTINGS_KEYS),
-        storageGet(chrome.storage.sync, SETTINGS_KEYS),
-      ]);
-
-      const settings = { ...syncSettings, ...localSettings };
-      const shouldMigrate = SETTINGS_KEYS.some(
-        (key) => localSettings[key] === undefined && syncSettings[key] !== undefined,
-      );
-
-      if (shouldMigrate) {
-        await storageSet(chrome.storage.local, settings);
-      }
-
-      if (settings.githubToken) patInput.value = settings.githubToken;
-      ownerInput.value = settings.repoOwner || '';
-      repoInput.value = settings.repoName || '';
-      autoSyncToggle.checked = settings.autoSync !== false; // default true
-
-      if (settings.githubToken && settings.repoOwner && settings.repoName) {
-        setStatus('success', 'Connected — ready to sync');
-      }
-
-      renderLog(settings.syncLog || []);
-    } catch (err) {
-      setStatus('error', `Failed to load settings: ${err.message}`);
+    if (result.githubToken && result.repoOwner && result.repoName) {
+      setStatus('success', 'Connected — ready to sync');
+    } else {
+      setStatus('idle', 'Enter GitHub Token, Owner & Repo');
     }
-  }
 
-  /* ── Save settings ─────────────────────────────── */
-  saveBtn.addEventListener('click', async () => {
-    const token = patInput.value.trim();
+    renderLog(result.syncLog || []);
+  });
+
+  /* ── Save settings action ───────────────────────── */
+  function performSave(silent = false) {
+    const rawToken = patInput.value.trim();
+    // Clean token: strip outer quotes or accidental "Bearer "/"token " prefix
+    const token = rawToken.replace(/^["']|["']$/g, '').replace(/^(Bearer|token)\s+/i, '').trim();
+    if (token !== rawToken) {
+      patInput.value = token;
+    }
     const owner = ownerInput.value.trim();
     const repo = repoInput.value.trim();
     const autoSync = autoSyncToggle.checked;
 
     if (!token || !owner || !repo) {
-      setStatus('error', 'All fields are required');
+      if (!silent) setStatus('error', 'All fields are required');
       return;
     }
 
-    const settings = { githubToken: token, repoOwner: owner, repoName: repo, autoSync };
+    saveSettings({ githubToken: token, repoOwner: owner, repoName: repo, autoSync }, () => {
+      if (!silent) setStatus('success', 'Settings saved ✓');
 
-    try {
-      await Promise.all([
-        storageSet(chrome.storage.local, settings),
-        storageSet(chrome.storage.sync, settings),
-      ]);
-
-      setStatus('success', 'Settings saved ✓');
-
-      // Validate token by hitting /user
+      // Validate token by hitting /user, falling back to /repos/owner/repo for fine-grained PATs
       fetch('https://api.github.com/user', {
         headers: {
-          Authorization: `token ${token}`,
+          Authorization: `Bearer ${token}`,
           Accept: 'application/vnd.github+json',
         },
       })
-        .then((res) => {
-          if (!res.ok) throw new Error(`HTTP ${res.status}`);
-          return res.json();
-        })
-        .then((user) => {
-          setStatus('success', `Authenticated as ${user.login}`);
+        .then(async (res) => {
+          if (res.ok) {
+            const user = await res.json();
+            setStatus('success', `Authenticated as ${user.login}`);
+            return;
+          }
+          // If /user failed (e.g. Fine-grained PAT without account user scope), check target repository access
+          const repoRes = await fetch(`https://api.github.com/repos/${owner}/${repo}`, {
+            headers: {
+              Authorization: `Bearer ${token}`,
+              Accept: 'application/vnd.github+json',
+            },
+          });
+          if (repoRes.ok) {
+            setStatus('success', `Connected to repository ${owner}/${repo} ✓`);
+          } else {
+            const errData = await repoRes.json().catch(() => ({}));
+            const msg = errData.message || `HTTP ${repoRes.status}`;
+            if (repoRes.status === 401 || res.status === 401) {
+              setStatus('error', '401 Bad credentials — PAT is invalid, expired, or missing repo scope');
+            } else {
+              setStatus('error', `GitHub API error (${repoRes.status}): ${msg}`);
+            }
+          }
         })
         .catch((err) => {
-          setStatus('error', `Token validation failed: ${err.message}`);
+          setStatus('error', `Validation failed: ${err.message}`);
         });
-    } catch (err) {
-      setStatus('error', `Failed to save settings: ${err.message}`);
-    }
+    });
+  }
+
+  saveBtn.addEventListener('click', () => performSave(false));
+
+  // Auto-save on blur / change for seamless persistence
+  [patInput, ownerInput, repoInput].forEach((input) => {
+    input.addEventListener('change', () => performSave(true));
   });
+  autoSyncToggle.addEventListener('change', () => performSave(true));
 
   /* ── Status indicator ──────────────────────────── */
   function setStatus(type, text) {
-    statusDot.className = `status-dot ${type === 'error' ? 'error' : 'success'}`;
+    statusDot.className = `status-dot ${type === 'error' ? 'error' : type === 'success' ? 'success' : 'idle'}`;
     statusText.textContent = text;
   }
 
@@ -152,7 +188,7 @@
         <li class="log-item">
           <span class="log-diff ${diffClass}">${diffLabel}</span>
           <div class="log-info">
-            <div class="log-title">${e.problemNumber}. ${escapeHtml(e.title)}</div>
+            <div class="log-title">${e.problemNumber ? e.problemNumber + '. ' : ''}${escapeHtml(e.title)}</div>
             <div class="log-meta">${escapeHtml(e.language)} · ${timeAgo}</div>
           </div>
         </li>`;

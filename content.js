@@ -62,12 +62,6 @@
     return match ? match[1] : null;
   }
 
-  function getGraphqlEndpoint() {
-    return window.location.hostname.endsWith('.cn')
-      ? 'https://leetcode.cn/graphql'
-      : 'https://leetcode.com/graphql';
-  }
-
   async function fetchProblemMeta(slug) {
     const query = `
       query questionData($titleSlug: String!) {
@@ -82,7 +76,7 @@
         }
       }`;
     try {
-      const res = await fetch(getGraphqlEndpoint(), {
+      const res = await fetch('https://leetcode.com/graphql', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -108,7 +102,7 @@
         }
       }`;
     try {
-      const res = await fetch(getGraphqlEndpoint(), {
+      const res = await fetch('https://leetcode.com/graphql', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -142,7 +136,7 @@
         }
       }`;
     try {
-      const res = await fetch(getGraphqlEndpoint(), {
+      const res = await fetch('https://leetcode.com/graphql', {
         method: 'POST',
         credentials: 'include',
         headers: { 'Content-Type': 'application/json' },
@@ -284,6 +278,21 @@
         }
       });
     }
+  }
+
+  /* ──────────────────── SPA Navigation Observer ──────── */
+  let lastUrl = window.location.href;
+  const urlObserver = new MutationObserver(() => {
+    if (window.location.href !== lastUrl) {
+      lastUrl = window.location.href;
+      const slug = getProblemSlug();
+      if (slug) {
+        console.log('[LeetSync-Mini] Active problem detected via SPA navigation:', slug);
+      }
+    }
+  });
+  if (document.documentElement) {
+    urlObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
 
   startObserver();
