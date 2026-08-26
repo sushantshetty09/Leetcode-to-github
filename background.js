@@ -192,7 +192,7 @@ function notify(title, message) {
   });
 }
 
-async function getStoredSettings() {
+async function getSettings() {
   const keys = ['githubToken', 'repoOwner', 'repoName', 'autoSync'];
   let syncData = {};
   let localData = {};
@@ -205,14 +205,16 @@ async function getStoredSettings() {
     localData = await chrome.storage.local.get(keys);
   } catch (_) {}
 
-  const rawToken = (syncData.githubToken || localData.githubToken || '').trim();
+  // Local storage takes priority (more reliable across contexts)
+  const rawToken = (localData.githubToken || syncData.githubToken || '').trim();
+  // Clean token: strip outer quotes or accidental "Bearer "/"token " prefix
   const githubToken = rawToken.replace(/^["']|["']$/g, '').replace(/^(Bearer|token)\s+/i, '').trim();
 
   return {
     githubToken,
-    repoOwner: (syncData.repoOwner || localData.repoOwner || '').trim(),
-    repoName: (syncData.repoName || localData.repoName || '').trim(),
-    autoSync: syncData.autoSync !== undefined ? syncData.autoSync : localData.autoSync !== false,
+    repoOwner: (localData.repoOwner || syncData.repoOwner || '').trim(),
+    repoName: (localData.repoName || syncData.repoName || '').trim(),
+    autoSync: localData.autoSync !== undefined ? localData.autoSync : (syncData.autoSync !== false),
   };
 }
 
@@ -221,7 +223,7 @@ async function getStoredSettings() {
 async function handleSubmission(data, sendResponse) {
   console.log('[LeetSync-Mini Background] Processing submission:', data);
 
-  const settings = await getStoredSettings();
+  const settings = await getSettings();
 
   if (settings.autoSync === false) {
     console.log('[LeetSync-Mini Background] Auto-sync is disabled.');

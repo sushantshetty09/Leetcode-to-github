@@ -1,10 +1,11 @@
 /**
  * LeetSync-Mini — Content Script
  *
- * Runs on https://leetcode.com/problems/* and https://leetcode.cn/problems/*
- * Injects `injected.js` into the page to catch fetch/XHR network responses,
- * receives postMessages when a submission is "Accepted", fetches full problem
- * metadata via GraphQL, and sends your code + stats to background worker.
+ * Runs on https://leetcode.com/* and https://leetcode.cn/*
+ * injected.js is loaded by the manifest in MAIN world (world: "MAIN").
+ * This script receives postMessages when a submission is "Accepted",
+ * fetches full problem metadata via GraphQL, and sends your code + stats
+ * to the background service worker.
  */
 
 (() => {
@@ -12,40 +13,6 @@
 
   /* ──────────────────── State ──────────────────── */
   const processedSubmissions = new Set();
-
-  /* ──────────────────── Inject Interceptor ────── */
-  function injectMainWorldScript() {
-    try {
-      if (!chrome.runtime || !chrome.runtime.id) return;
-      const script = document.createElement('script');
-      script.src = chrome.runtime.getURL('injected.js');
-      script.onload = function () {
-        this.remove();
-      };
-
-      const target = document.head || document.documentElement;
-      if (target) {
-        target.appendChild(script);
-        console.log('[LeetSync-Mini] Injected main-world interceptor.');
-      } else {
-        document.addEventListener(
-          'DOMContentLoaded',
-          () => {
-            const domTarget = document.head || document.documentElement;
-            if (domTarget) {
-              domTarget.appendChild(script);
-              console.log('[LeetSync-Mini] Injected main-world interceptor on DOMContentLoaded.');
-            }
-          },
-          { once: true },
-        );
-      }
-    } catch (e) {
-      console.warn('[LeetSync-Mini] Failed to inject script:', e);
-    }
-  }
-
-  injectMainWorldScript();
 
   /* ──────────────────── Listen to postMessage ──── */
   window.addEventListener('message', (event) => {
@@ -285,9 +252,12 @@
   const urlObserver = new MutationObserver(() => {
     if (window.location.href !== lastUrl) {
       lastUrl = window.location.href;
+      // Reset state on page navigation so new problem submissions are captured
+      processedSubmissions.clear();
+      domFallbackFired = false;
       const slug = getProblemSlug();
       if (slug) {
-        console.log('[LeetSync-Mini] Active problem detected via SPA navigation:', slug);
+        console.log('[LeetSync-Mini] Navigated to problem:', slug);
       }
     }
   });

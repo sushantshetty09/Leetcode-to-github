@@ -19,8 +19,9 @@
   const logList = document.getElementById('logList');
 
   /* ── Check if running inside Chrome Extension ────── */
-  if (typeof chrome === 'undefined' || !chrome.storage) {
-    setStatus('error', 'Open via Extension icon in Chrome toolbar');
+  if (typeof chrome === 'undefined' || !chrome.storage || !chrome.storage.local) {
+    if (statusDot) statusDot.className = 'status-dot error';
+    if (statusText) statusText.textContent = 'Open via Extension icon in Chrome toolbar';
     if (saveBtn) {
       saveBtn.disabled = true;
       saveBtn.style.opacity = '0.5';
